@@ -1,0 +1,39 @@
+{{- /* Modified for cog-sharp: JSON-visible properties; see NOTICE. */ -}}
+namespace {{ .Namespace }};
+{{ if .Imports }}
+{{ .Imports }}
+{{- end }}
+{{- range .Comments }}
+// {{ . }}
+{{- end }}
+{{- range .ClassAttributes }}
+{{ . }}
+{{- end }}
+public class {{ .Name }}{{ if .Extends }} : {{ join ", " .Extends }}{{ end }}
+{
+    {{- range .Fields }}
+    {{- range .Comments }}
+    // {{ . }}
+    {{- end }}
+    {{- range .Attributes }}
+    {{ . }}
+    {{- end }}
+    public {{ .Type }} {{ .Name }} { get; set; }
+    {{- end }}
+
+    public {{ .Name }}()
+    {
+        {{- range .DefaultAssignments }}
+        this.{{ .Name }} = {{ .Value }};
+        {{- end }}
+    }
+    {{- if .HasArgsConstructor }}
+
+    public {{ .Name }}({{- range $i, $a := .Args }}{{ if $i }}, {{ end }}{{ $a.Type }} {{ $a.Name }}{{- end }})
+    {
+        {{- range .ArgAssignments }}
+        this.{{ .Name }} = {{ .ValueFromArg }};
+        {{- end }}
+    }
+    {{- end }}
+}

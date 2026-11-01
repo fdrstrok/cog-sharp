@@ -1,0 +1,35 @@
+{{- /* Modified for cog-sharp; see NOTICE. */ -}}
+{{- /* Validates a builder option argument before assigning it.
+       Maps the AST constraint vocabulary onto C# expressions; regex
+       constraints lean on System.Text.RegularExpressions.Regex.
+*/ -}}
+{{- define "constraints" }}
+{{- range . }}
+    {{- $leftOperand := .Argument.Name | formatArgName }}
+    {{- $operator := .Op }}
+    {{- if eq .Op "minLength" }}
+        {{- $leftOperand = print $leftOperand ".Length" }}
+        {{- $operator = ">=" }}
+    {{- end }}
+    {{- if eq .Op "maxLength" }}
+        {{- $leftOperand = print $leftOperand ".Length" }}
+        {{- $operator = "<=" }}
+    {{- end }}
+    {{- if eq .Op "=~" }}
+        if (!System.Text.RegularExpressions.Regex.IsMatch({{ $leftOperand }}, {{ .Parameter | formatStringLiteral }}))
+        {
+            throw new System.ArgumentException({{ print $leftOperand " must match regex " .Parameter | formatStringLiteral }});
+        }
+    {{- else if eq .Op "!~" }}
+        if (System.Text.RegularExpressions.Regex.IsMatch({{ $leftOperand }}, {{ .Parameter | formatStringLiteral }}))
+        {
+            throw new System.ArgumentException({{ print $leftOperand " must not match regex " .Parameter | formatStringLiteral }});
+        }
+    {{- else }}
+        if (!({{ $leftOperand }} {{ $operator }} {{ .Parameter }}))
+        {
+            throw new System.ArgumentException({{ print $leftOperand " must be " $operator " " .Parameter | formatStringLiteral }});
+        }
+    {{- end }}
+{{- end }}
+{{- end }}

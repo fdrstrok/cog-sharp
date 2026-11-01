@@ -1,0 +1,5 @@
+/bin/
+/examples/basic/generated/
+**/bin/
+**/obj/
+.DS_Store

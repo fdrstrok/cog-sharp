@@ -1,0 +1,18 @@
+inputs:
+  - cue:
+      entrypoint: '%__config_dir%/schema/shared'
+  - cue:
+      entrypoint: '%__config_dir%/schema'
+      cue_imports:
+        - '%__config_dir%/schema/shared:example.com/shared'
+
+output:
+  directory: '%__config_dir%/generated'
+  types: true
+  builders: true
+  converters: false
+  api_reference: false
+  language_plugins:
+    csharp:
+      namespace_root: Example.Foundation
+      generate_json_converters: true

@@ -1,0 +1,15 @@
+cog-sharp
+
+The C# generator and template files are derived from grafana/cog PR #1098
+by fdrstrok, commit 6dcd12124553a7adbe8b9b1fc37176d55fb812ba:
+https://github.com/grafana/cog/pull/1098
+
+The naming and numeric helpers are adapted from grafana/cog.
+The original work is distributed under the Apache License, Version 2.0.
+The original copyright and attribution notices, where present, are retained.
+
+Modified for cog-sharp: standalone language-plugin integration, public Cog
+APIs, RPC-safe hints and file metadata, C# properties and nullable types,
+identifier escaping, executable regression tests, and repository tooling.
+
+This is an independent community project, not an official Grafana SDK.
