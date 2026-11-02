@@ -1,0 +1,102 @@
+name: Publish NuGet SDK
+
+on:
+  push:
+    tags: ['sdk-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuget-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'fdrstrok/cog-sharp'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      sha256: ${{ steps.package.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Validate release tag and source
+        id: release
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$REF_TYPE" = tag
+          VERSION="$(go run ./cmd/sdk-release version "$REF_NAME")"
+          git merge-base --is-ancestor HEAD origin/main
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Build and test the release package
+        env:
+          SDK_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          make check
+          make smoke sdk-pack
+          git diff --exit-code
+      - name: Verify the exact package
+        id: package
+        env:
+          SDK_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          PACKAGE=".cache/packages/CogSharp.Grafana.Foundation.${SDK_VERSION}.nupkg"
+          go run ./cmd/sdk-release verify --package "$PACKAGE" --version "$SDK_VERSION" --commit "$(git rev-parse HEAD)"
+          echo "sha256=$(sha256sum "$PACKAGE" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sdk-nuget-package
+          path: .cache/packages/CogSharp.Grafana.Foundation.${{ steps.release.outputs.version }}.nupkg
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: nuget
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sdk-nuget-package
+          path: package
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Verify package handoff and publisher configuration
+        env:
+          SDK_VERSION: ${{ needs.build.outputs.version }}
+          EXPECTED_SHA256: ${{ needs.build.outputs.sha256 }}
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$NUGET_USER"
+          echo "$EXPECTED_SHA256  package/CogSharp.Grafana.Foundation.${SDK_VERSION}.nupkg" | sha256sum --check --strict -
+      - name: Authenticate to NuGet.org with OIDC
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+      - name: Publish the verified package
+        env:
+          SDK_VERSION: ${{ needs.build.outputs.version }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "package/CogSharp.Grafana.Foundation.${SDK_VERSION}.nupkg" \
+            --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json

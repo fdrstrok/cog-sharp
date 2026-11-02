@@ -9,10 +9,12 @@
     <RootNamespace>Grafana.Foundation</RootNamespace>
     <PackageId>CogSharp.Grafana.Foundation</PackageId>
     <Version>0.1.0-alpha.1</Version>
+    <Authors>fdrstrok</Authors>
     <Description>Community-generated Grafana Foundation SDK for C#.</Description>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/fdrstrok/cog-sharp</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/fdrstrok/cog-sharp</PackageProjectUrl>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Generated/**/*.cs" />

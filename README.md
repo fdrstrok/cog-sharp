@@ -107,6 +107,10 @@ empty library.
 The DLL is written to `sdk/Grafana.Foundation/bin/Release/net10.0/`.
 Local packages are written to `.cache/packages/` with the community package
 ID `CogSharp.Grafana.Foundation`. No package is published by these commands.
+The default development version is `0.1.0-alpha.1`; override it with
+`make sdk-pack SDK_VERSION=0.1.0-alpha.2`. Build and pack use the same version
+and full Git source commit. The resulting `.nupkg` is checked for its package
+ID, version, author, source commit, license, notice, README, and SDK assembly.
 Only regeneration needs Go/Cog and network access; C# consumers use normal
 project or package references.
 
@@ -151,6 +155,57 @@ Current limitations:
 - NuGet publication, official Grafana maintenance, live Grafana deployment, and Native AOT are not claimed.
 - Cog v0.2.4's discriminator inference does not handle unions containing
   only foreign-package references; those require explicit schema mapping.
+
+## NuGet release setup
+
+The publishing workflow is prepared, but publishing a package is a separate,
+explicit action. It runs only for an `sdk-v<version>` tag, for example
+`sdk-v0.1.0-alpha.1`, or a manual dispatch targeting such a tag. Dispatching
+the workflow on a branch is rejected.
+
+The workflow builds and tests the tag's source, requires it to be reachable
+from `main`, and packs that tag's exact version and source commit. A separate
+job publishes the same tested artifact after checking its SHA-256 digest.
+Only that job has OIDC permission, and it uses the `nuget` GitHub environment,
+which requires approval and allows only `sdk-v*` tags.
+
+Before the first release, configure
+[NuGet.org Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)
+under the intended NuGet owner account:
+
+| NuGet policy field | Value |
+|---|---|
+| Owner | Your NuGet account or package-owning organization |
+| Repository owner | `fdrstrok` |
+| Repository | `cog-sharp` |
+| Workflow file | `publish-nuget.yml` (filename only) |
+| Environment | `nuget` |
+| Package glob | `CogSharp.Grafana.Foundation` |
+| Scope | Push new packages and package versions |
+
+Set GitHub repository variable `NUGET_USER` to the NuGet profile username.
+No long-lived API key is required. NuGet issues a short-lived credential only
+after the approved publishing job starts.
+
+When the policy is configured and a release is explicitly approved:
+
+```sh
+git tag sdk-v0.1.0-alpha.1 <reviewed-main-commit>
+git push origin sdk-v0.1.0-alpha.1
+```
+
+Review the successful build and approve the `nuget` environment deployment
+to allow the push. Existing NuGet versions are not overwritten or silently
+skipped. After NuGet validation/indexing, verify installation from the public
+feed in a fresh .NET 10 project.
+
+The package build and metadata checks can run locally without creating a
+tag, configuring NuGet credentials, or publishing:
+
+```sh
+make sdk-pack
+go run ./cmd/sdk-release version sdk-v0.1.0-alpha.1
+```
 
 ## License
 
