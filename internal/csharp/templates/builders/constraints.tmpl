@@ -6,6 +6,7 @@
 {{- define "constraints" }}
 {{- range . }}
     {{- $leftOperand := .Argument.Name | formatArgName }}
+    {{- $argument := $leftOperand }}
     {{- $operator := .Op }}
     {{- if eq .Op "minLength" }}
         {{- $leftOperand = print $leftOperand ".Length" }}
@@ -16,17 +17,17 @@
         {{- $operator = "<=" }}
     {{- end }}
     {{- if eq .Op "=~" }}
-        if (!System.Text.RegularExpressions.Regex.IsMatch({{ $leftOperand }}, {{ .Parameter | formatStringLiteral }}))
+        if ({{ if .Argument.Type.Nullable }}{{ $argument }} != null && {{ end }}!System.Text.RegularExpressions.Regex.IsMatch({{ $leftOperand }}, {{ .Parameter | formatStringLiteral }}))
         {
             throw new System.ArgumentException({{ print $leftOperand " must match regex " .Parameter | formatStringLiteral }});
         }
     {{- else if eq .Op "!~" }}
-        if (System.Text.RegularExpressions.Regex.IsMatch({{ $leftOperand }}, {{ .Parameter | formatStringLiteral }}))
+        if ({{ if .Argument.Type.Nullable }}{{ $argument }} != null && {{ end }}System.Text.RegularExpressions.Regex.IsMatch({{ $leftOperand }}, {{ .Parameter | formatStringLiteral }}))
         {
             throw new System.ArgumentException({{ print $leftOperand " must not match regex " .Parameter | formatStringLiteral }});
         }
     {{- else }}
-        if (!({{ $leftOperand }} {{ $operator }} {{ .Parameter }}))
+        if ({{ if .Argument.Type.Nullable }}{{ $argument }} != null && {{ end }}!({{ $leftOperand }} {{ $operator }} {{ .Parameter }}))
         {
             throw new System.ArgumentException({{ print $leftOperand " must be " $operator " " .Parameter | formatStringLiteral }});
         }

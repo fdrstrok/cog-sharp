@@ -1,0 +1,74 @@
+namespace {{ .Namespace }};
+
+using System.Collections.Generic;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+public sealed class {{ .Name }}JsonConverter : JsonConverter<{{ .Name }}>
+{
+    public override {{ .Name }} Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+    {
+        using var document = JsonDocument.ParseValue(ref reader);
+        var root = document.RootElement;
+        var result = new {{ .Name }}();
+        {{- range $index, $field := .Fields }}
+        if (root.TryGetProperty({{ .JSONName | formatStringLiteral }}, out var field{{ $index }}))
+        {
+            result.{{ .Name }} = field{{ $index }}.Deserialize<{{ .Type }}>(options)!;
+        }
+        {{- end }}
+        var group = root.TryGetProperty({{ .Discriminator | formatStringLiteral }}, out var discriminator)
+            ? discriminator.GetString() : null;
+        {{- if .Query }}
+        if (root.TryGetProperty("spec", out var spec))
+        {
+            result.Spec = Cog.Variants.Registry.ReadQuery(group, spec, options);
+        }
+        {{- else if .Nested }}
+        if (root.TryGetProperty("spec", out var spec) && spec.ValueKind == JsonValueKind.Object)
+        {
+            if (spec.TryGetProperty("options", out var panelOptions))
+            {
+                result.Spec.Options = Cog.Variants.Registry.ReadPanelOptions(group, panelOptions, options);
+            }
+            if (result.Spec.FieldConfig?.Defaults != null &&
+                spec.TryGetProperty("fieldConfig", out var fieldConfig) &&
+                fieldConfig.TryGetProperty("defaults", out var defaults) &&
+                defaults.TryGetProperty("custom", out var custom))
+            {
+                result.Spec.FieldConfig.Defaults.Custom = Cog.Variants.Registry.ReadPanelFields(group, custom, options);
+            }
+        }
+        {{- else }}
+        if (root.TryGetProperty("options", out var panelOptions))
+        {
+            result.Options = Cog.Variants.Registry.ReadPanelOptions(group, panelOptions, options);
+        }
+        if (result.FieldConfig?.Defaults != null &&
+            root.TryGetProperty("fieldConfig", out var fieldConfig) &&
+            fieldConfig.TryGetProperty("defaults", out var defaults) &&
+            defaults.TryGetProperty("custom", out var custom))
+        {
+            result.FieldConfig.Defaults.Custom = Cog.Variants.Registry.ReadPanelFields(group, custom, options);
+        }
+        {{- end }}
+        return result;
+    }
+
+    public override void Write(Utf8JsonWriter writer, {{ .Name }} value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        {{- range .Fields }}
+        {{- if .Optional }}
+        if (value.{{ .Name }} != null)
+        {
+        {{- end }}
+            writer.WritePropertyName({{ .JSONName | formatStringLiteral }});
+            JsonSerializer.Serialize(writer, value.{{ .Name }}, options);
+        {{- if .Optional }}
+        }
+        {{- end }}
+        {{- end }}
+        writer.WriteEndObject();
+    }
+}

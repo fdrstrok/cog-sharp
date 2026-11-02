@@ -1,0 +1,29 @@
+namespace {{ .Namespace }};
+
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+public sealed class {{ .Name }}JsonConverter : JsonConverter<{{ .Name }}>
+{
+    public override {{ .Name }} Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+    {
+        return reader.GetString() switch
+        {
+            {{- range .Values }}
+            {{ .Value | formatStringLiteral }} => {{ $.Name }}.{{ .Name }},
+            {{- end }}
+            _ => throw new JsonException("Unknown {{ .Name }} value"),
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, {{ .Name }} value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value switch
+        {
+            {{- range .Values }}
+            {{ $.Name }}.{{ .Name }} => {{ .Value | formatStringLiteral }},
+            {{- end }}
+            _ => throw new JsonException("Unknown {{ .Name }} value"),
+        });
+    }
+}

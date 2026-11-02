@@ -1,0 +1,11 @@
+namespace {{ .Namespace }};
+
+{{ if .JSON }}[System.Text.Json.Serialization.JsonConverter(typeof(DataqueryJsonConverter))]
+{{ end -}}
+public interface Dataquery
+{
+}
+
+public interface Panelcfg
+{
+}

@@ -133,7 +133,7 @@ func (language *Language) Jennies(globalConfig languages.Config) *codejen.JennyL
 	jenny.AppendOneToMany(
 		jennies.If(globalConfig.Types, RawTypes{config: config, tmpl: tmpl}),
 		jennies.If(globalConfig.Types && config.GenerateJSONConverters && !config.SkipRuntime, &Converters{config: config, tmpl: tmpl}),
-		jennies.If(config.GenerateBuilders && !config.SkipRuntime, Runtime{config: config, tmpl: tmpl}),
+		jennies.If((globalConfig.Types || config.GenerateBuilders) && !config.SkipRuntime, Runtime{config: config, tmpl: tmpl}),
 		jennies.If(config.GenerateBuilders && !config.SkipRuntime, Builder{
 			config:          config,
 			tmpl:            tmpl,

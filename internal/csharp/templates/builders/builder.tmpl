@@ -44,6 +44,8 @@ public class {{ .BuilderName }}Builder : Cog.IBuilder<{{ .BuilderSignatureType }
     }
     {{- end }}
 
+    {{- includeIfExists (print "builder_extra_" .BuilderName) (dict) }}
+
     public {{ .ObjectName }} Build()
     {
         return this.@internal;

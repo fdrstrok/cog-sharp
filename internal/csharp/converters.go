@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/grafana/codejen"
 	"github.com/grafana/cog/pkg/ir"
@@ -41,7 +42,42 @@ func (jenny *Converters) Generate(context languages.Context) (codejen.Files, err
 	for _, schema := range context.Schemas {
 		var iterErr error
 		schema.Objects.Iterate(func(_ string, object ir.Object) {
-			if iterErr != nil || !needsCustomConverter(object) {
+			if iterErr != nil {
+				return
+			}
+			if object.Type.IsEnum() {
+				values := object.Type.AsEnum().Values
+				if len(values) != 0 && values[0].Type.AsScalar().ScalarKind == ir.KindString {
+					type enumValue struct{ Name, Value string }
+					var cases []enumValue
+					for _, value := range values {
+						cases = append(cases, enumValue{Name: formatEnumMemberName(value.Name), Value: value.Value.(string)})
+					}
+					out, err := jenny.tmpl.RenderAsBytes("marshalling/string_enum.tmpl", map[string]any{
+						"Namespace": jenny.config.formatNamespace(schema.Package),
+						"Name":      formatObjectName(object.Name), "Values": cases,
+					})
+					if err != nil {
+						iterErr = err
+						return
+					}
+					files = append(files, *codejen.NewFile(
+						filepath.Join(jenny.config.ProjectPath, formatPackageName(schema.Package), formatObjectName(object.Name)+"JsonConverter.cs"),
+						out, jenny,
+					))
+				}
+				return
+			}
+			if runtime := pluginRuntimeConfig(object, context); runtime != nil {
+				f, err := jenny.genPluginConverter(schema.Package, object, *runtime)
+				if err != nil {
+					iterErr = err
+					return
+				}
+				files = append(files, *f)
+				return
+			}
+			if !needsCustomConverter(object) {
 				return
 			}
 			f, err := jenny.genConverter(schema.Package, object)
@@ -49,6 +85,7 @@ func (jenny *Converters) Generate(context languages.Context) (codejen.Files, err
 				iterErr = err
 				return
 			}
+
 			files = append(files, *f)
 		})
 		if iterErr != nil {
@@ -56,6 +93,35 @@ func (jenny *Converters) Generate(context languages.Context) (codejen.Files, err
 		}
 	}
 	return files, nil
+}
+
+func (jenny *Converters) genPluginConverter(pkg string, object ir.Object, config languages.RuntimeConfig) (*codejen.File, error) {
+	namespace := jenny.config.formatNamespace(pkg)
+	tf := newTypeFormatter(jenny.context, jenny.config, newImportMap(jenny.config.namespaceRoot(), namespace))
+	type fieldModel struct {
+		Name, JSONName, Type string
+		Optional             bool
+	}
+	var fields []fieldModel
+	for _, field := range object.Type.AsStruct().Fields {
+		if !field.Required && field.Type.Default == nil {
+			field.Type.Nullable = true
+		}
+		fields = append(fields, fieldModel{
+			Name: formatFieldName(field.Name), JSONName: field.Name,
+			Type: tf.formatFieldType(field.Type), Optional: !field.Required,
+		})
+	}
+	out, err := jenny.tmpl.RenderAsBytes("marshalling/plugin_object.tmpl", map[string]any{
+		"Namespace": namespace, "Name": formatObjectName(object.Name), "Fields": fields,
+		"Discriminator": config.DiscriminatorField,
+		"Query":         strings.EqualFold(config.Name, "dataquerykind"),
+		"Nested":        strings.EqualFold(config.Name, "vizconfigkind"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return codejen.NewFile(filepath.Join(jenny.config.ProjectPath, formatPackageName(pkg), formatObjectName(object.Name)+"JsonConverter.cs"), out, jenny), nil
 }
 
 func (jenny *Converters) genConverter(pkg string, object ir.Object) (*codejen.File, error) {

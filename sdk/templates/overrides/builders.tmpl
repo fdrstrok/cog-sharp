@@ -1,0 +1,84 @@
+{{- /* Adapted from the Foundation SDK Java hooks for cog-sharp; see NOTICE. */ -}}
+{{- define "pre_assignment_QueryGroup_target" }}
+        var allQueries = new List<PanelQueryKind>(this.@internal.Spec.Queries) { querieResource };
+        this.AssignQueryIds(allQueries);
+{{- end }}
+
+{{- define "pre_assignment_QueryGroup_targets" }}
+        this.AssignQueryIds(queriesResources);
+{{- end }}
+
+{{- define "builder_extra_QueryGroup" }}
+    private void AssignQueryIds(List<PanelQueryKind> queries)
+    {
+        var reserved = new HashSet<string>(System.StringComparer.Ordinal);
+        foreach (var query in queries)
+        {
+            if (!string.IsNullOrEmpty(query.Spec.RefId) && !reserved.Add(query.Spec.RefId))
+            {
+                throw new System.ArgumentException($"Duplicate query refId: {query.Spec.RefId}");
+            }
+        }
+        foreach (var query in queries)
+        {
+            if (!string.IsNullOrEmpty(query.Spec.RefId))
+            {
+                continue;
+            }
+            string candidate;
+            do
+            {
+                candidate = $"query-{this.nextQueryId++}";
+            } while (!reserved.Add(candidate));
+            query.Spec.RefId = candidate;
+        }
+    }
+{{- end }}
+
+{{- define "pre_assignment_Dashboard_withPanel" }}
+        System.ArgumentNullException.ThrowIfNull(panelResource);
+        var grid = panelResource.GridPos ??= new GridPos();
+        if (grid.X == 0 && grid.Y == 0)
+        {
+            if (this.currentX + grid.W > 24)
+            {
+                this.currentX = 0;
+                this.currentY += this.lastPanelHeight;
+                this.lastPanelHeight = 0;
+            }
+            grid.X = this.currentX;
+            grid.Y = this.currentY;
+        }
+{{- end }}
+
+{{- define "post_assignment_Dashboard_withPanel" }}
+        this.currentX += grid.W;
+        this.lastPanelHeight = System.Math.Max(this.lastPanelHeight, grid.H);
+        if (this.currentX >= 24)
+        {
+            this.currentX = 0;
+            this.currentY += this.lastPanelHeight;
+            this.lastPanelHeight = 0;
+        }
+{{- end }}
+
+{{- define "pre_assignment_Dashboard_withRow" }}
+        System.ArgumentNullException.ThrowIfNull(rowPanelResource);
+        if (this.currentX != 0)
+        {
+            this.currentY += this.lastPanelHeight;
+        }
+        var grid = rowPanelResource.GridPos ??= new GridPos { X = 0, Y = this.currentY, H = 1, W = 24 };
+        if (grid.X == 0 && grid.Y == 0)
+        {
+            grid.Y = this.currentY;
+            grid.H = 1;
+            grid.W = 24;
+        }
+{{- end }}
+
+{{- define "post_assignment_Dashboard_withRow" }}
+        this.currentX = 0;
+        this.currentY = grid.Y + grid.H;
+        this.lastPanelHeight = 0;
+{{- end }}

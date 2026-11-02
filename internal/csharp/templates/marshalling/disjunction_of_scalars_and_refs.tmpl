@@ -43,10 +43,10 @@ public sealed class {{ .Name }}JsonConverter : JsonConverter<{{ .Name }}>
         {{- end }}
         {{- if .HasAnyBranch }}
                 result.{{ .AnyField }} = JsonSerializer.Deserialize<JsonElement>(raw, options);
+                break;
         {{- else }}
                 throw new JsonException("no ref branch matched JSON object for {{ .Name }}");
         {{- end }}
-                break;
             default:
                 throw new JsonException("unexpected token while deserialising {{ .Name }}: " + root.ValueKind);
         }

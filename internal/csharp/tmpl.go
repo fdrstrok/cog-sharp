@@ -68,6 +68,7 @@ func formattingTemplateFuncs() template.FuncMap {
 		"formatPath":               stub("formatPath"),
 		"formatPathIndex":          stub("formatPathIndex"),
 		"emptyValueForType":        stub("emptyValueForType"),
+		"newReference":             stub("newReference"),
 		"typeHasBuilder":           func(...any) bool { return false },
 		"resolvesToComposableSlot": func(...any) bool { return false },
 	}
@@ -120,10 +121,11 @@ type assignment struct {
 
 // enumTemplate is the model bound to templates/types/enum.tmpl.
 type enumTemplate struct {
-	Namespace string
-	Name      string
-	Comments  []string
-	IsString  bool
+	Namespace      string
+	Name           string
+	UnderlyingType string
+	Comments       []string
+	IsString       bool
 	// Imports is rendered between the namespace declaration and the
 	// enum declaration. Pre-built so we can include the
 	// System.Text.Json.Serialization namespace when JSON-marshalling

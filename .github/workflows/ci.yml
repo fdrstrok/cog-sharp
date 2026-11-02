@@ -25,3 +25,5 @@ jobs:
         run: make check
       - name: Generate through Cog and run C# regression checks
         run: make smoke
+      - name: Generate and compile the full Foundation SDK, test consumers, and pack
+        run: make sdk-pack

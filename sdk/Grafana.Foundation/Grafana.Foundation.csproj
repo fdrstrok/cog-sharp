@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>Grafana.Foundation</AssemblyName>
+    <RootNamespace>Grafana.Foundation</RootNamespace>
+    <PackageId>CogSharp.Grafana.Foundation</PackageId>
+    <Version>0.1.0-alpha.1</Version>
+    <Description>Community-generated Grafana Foundation SDK for C#.</Description>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/fdrstrok/cog-sharp</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Generated/**/*.cs" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+    <None Include="../../NOTICE" Pack="true" PackagePath="/" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <Target Name="RequireGeneratedSources" BeforeTargets="CoreCompile">
+    <Error Condition="!Exists('Generated/inputs.txt')"
+           Text="SDK sources are missing. Run make sdk-generate first." />
+  </Target>
+</Project>

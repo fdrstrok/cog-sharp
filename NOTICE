@@ -10,6 +10,9 @@ The original copyright and attribution notices, where present, are retained.
 
 Modified for cog-sharp: standalone language-plugin integration, public Cog
 APIs, RPC-safe hints and file metadata, C# properties and nullable types,
-identifier escaping, executable regression tests, and repository tooling.
+identifier escaping, typed variant serialization, executable regression
+tests, and repository tooling. SDK builder hooks are adapted from the
+Foundation SDK Java override templates at pinned commit
+72b873117be02d3cd352c4ac8590b6555b0d1ce2, under the same Apache-2.0 license.
 
 This is an independent community project, not an official Grafana SDK.

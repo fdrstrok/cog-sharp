@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/grafana/codejen"
 	"github.com/grafana/cog/pkg/ir"
@@ -202,6 +203,9 @@ func (jenny RawTypes) buildClassTemplate(namespace string, name string, comments
 	argAssignments := make([]assignment, 0, len(fields))
 
 	isDisjunctionStruct := needsCustomConverter(object)
+	if object.Type.IsDataqueryVariant() && !jenny.config.SkipRuntime {
+		extends = append(extends, "Cog.Variants.Dataquery")
+	}
 	jsonEnabled := jenny.jsonMarshaller.enabled()
 	// Nullable value-type fields and the suppression of default
 	// assignments are only required when we'll emit a custom
@@ -211,6 +215,9 @@ func (jenny RawTypes) buildClassTemplate(namespace string, name string, comments
 	disjunctionPOCO := isDisjunctionStruct && jsonEnabled
 
 	for _, field := range fields {
+		if !field.Required && field.Type.Default == nil {
+			field.Type.Nullable = true
+		}
 		fieldName := formatFieldName(field.Name)
 		argName := formatArgName(field.Name)
 		typeExpr := jenny.typeFormatter.formatFieldType(field.Type)
@@ -258,7 +265,7 @@ func (jenny RawTypes) buildClassTemplate(namespace string, name string, comments
 
 	var classAttrs []string
 	if jsonEnabled {
-		if attr := jenny.jsonMarshaller.classConverterAttribute(object); attr != "" {
+		if attr := jenny.jsonMarshaller.classConverterAttribute(object, jenny.typeFormatter.context); attr != "" {
 			classAttrs = append(classAttrs, attr)
 			jenny.imports.addNamespace("System.Text.Json.Serialization")
 		}
@@ -284,11 +291,40 @@ func (jenny RawTypes) buildClassTemplate(namespace string, name string, comments
 }
 
 // formatDefault renders a literal expression for a field's default value.
-// Only scalar defaults are supported in Phase 2 — refs and enums fall
-// back to the type's "empty" value.
+// Schema defaults may include enum members, object fields, and array values.
 func (jenny RawTypes) formatDefault(t ir.Type, value any) string {
 	if t.IsScalar() {
 		return formatScalarValue(t.AsScalar().ScalarKind, value)
+	}
+	if t.IsRef() {
+		if object, found := jenny.typeFormatter.context.GetObjectByRef(t.AsRef()); found {
+			if object.Type.IsEnum() {
+				member, found := object.Type.AsEnum().MemberForValue(value)
+				if found {
+					return jenny.typeFormatter.referenceName(t.AsRef()) + "." + formatEnumMemberName(member.Name)
+				}
+			}
+			if object.Type.IsStruct() {
+				if values, ok := value.(map[string]any); ok {
+					var assignments []string
+					for _, field := range object.Type.AsStruct().Fields {
+						if fieldValue, found := values[field.Name]; found {
+							assignments = append(assignments, formatFieldName(field.Name)+" = "+jenny.formatDefault(field.Type, fieldValue))
+						}
+					}
+					return "new " + jenny.typeFormatter.referenceName(t.AsRef()) + " { " + strings.Join(assignments, ", ") + " }"
+				}
+			}
+		}
+	}
+	if t.IsArray() {
+		if values, ok := value.([]any); ok {
+			var items []string
+			for _, item := range values {
+				items = append(items, jenny.formatDefault(t.AsArray().ValueType, item))
+			}
+			return "new " + jenny.typeFormatter.formatArray(t.AsArray()) + " { " + strings.Join(items, ", ") + " }"
+		}
 	}
 	return jenny.typeFormatter.emptyValueForType(t)
 }
@@ -300,6 +336,10 @@ func (jenny RawTypes) formatEnum(namespace string, object ir.Object) ([]byte, er
 	}
 
 	isString := enumDef.Values[0].Type.IsScalar() && enumDef.Values[0].Type.AsScalar().ScalarKind == ir.KindString
+	underlyingType := ""
+	if !isString {
+		underlyingType = formatScalarType(enumDef.Values[0].Type.AsScalar())
+	}
 
 	values := make([]EnumValue, 0, len(enumDef.Values))
 	for _, v := range enumDef.Values {
@@ -328,6 +368,7 @@ func (jenny RawTypes) formatEnum(namespace string, object ir.Object) ([]byte, er
 	data := enumTemplate{
 		Namespace:      namespace,
 		Name:           formatObjectName(object.Name),
+		UnderlyingType: underlyingType,
 		Comments:       object.Comments,
 		IsString:       isString,
 		Imports:        enumImports,

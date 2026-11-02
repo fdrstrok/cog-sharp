@@ -1,0 +1,70 @@
+namespace {{ .Namespace }};
+
+using System;
+using System.Collections.Generic;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+public static class Registry
+{
+    private static readonly Dictionary<string, Type> queries = new(StringComparer.Ordinal)
+    {
+        {{- range .Queries }}
+        [{{ .Identifier | formatStringLiteral }}] = typeof({{ .Type }}),
+        {{- end }}
+    };
+
+    private static readonly Dictionary<string, (Type Options, Type? Fields)> panels = new(StringComparer.Ordinal)
+    {
+        {{- range .Panels }}
+        [{{ .Identifier | formatStringLiteral }}] = (typeof({{ .Type }}), {{ .FieldConfig }}),
+        {{- end }}
+    };
+
+    public static object? ReadQuery(string? group, JsonElement value, JsonSerializerOptions options)
+    {
+        return group != null && queries.TryGetValue(group, out var type)
+            ? value.Deserialize(type, options) : value.Clone();
+    }
+
+    public static object? ReadPanelOptions(string? group, JsonElement value, JsonSerializerOptions options)
+    {
+        return group != null && panels.TryGetValue(group, out var config)
+            ? value.Deserialize(config.Options, options) : value.Clone();
+    }
+
+    public static object? ReadPanelFields(string? group, JsonElement value, JsonSerializerOptions options)
+    {
+        return group != null && panels.TryGetValue(group, out var config) && config.Fields != null
+            ? value.Deserialize(config.Fields, options) : value.Clone();
+    }
+}
+
+public sealed class UnknownDataquery : Dataquery
+{
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> Fields { get; set; } = new();
+}
+
+public sealed class DataqueryJsonConverter : JsonConverter<Dataquery>
+{
+    public override Dataquery Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using var document = JsonDocument.ParseValue(ref reader);
+        var root = document.RootElement;
+        string? group = null;
+        if (root.TryGetProperty("datasource", out var datasource) &&
+            datasource.ValueKind == JsonValueKind.Object &&
+            datasource.TryGetProperty("type", out var type))
+        {
+            group = type.GetString();
+        }
+        var query = Registry.ReadQuery(group, root, options);
+        return query as Dataquery ?? root.Deserialize<UnknownDataquery>(options)!;
+    }
+
+    public override void Write(Utf8JsonWriter writer, Dataquery value, JsonSerializerOptions options)
+    {
+        JsonSerializer.Serialize(writer, value, value.GetType(), options);
+    }
+}

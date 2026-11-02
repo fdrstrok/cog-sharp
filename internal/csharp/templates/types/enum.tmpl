@@ -15,7 +15,7 @@ namespace {{ .Namespace }};
 {{- range .EnumAttributes }}
 {{ . }}
 {{- end }}
-public enum {{ .Name }}
+public enum {{ .Name }}{{ if .UnderlyingType }} : {{ .UnderlyingType }}{{ end }}
 {
     {{- range $i, $val := .Values }}
     {{- if and $.IsString $.JSONEnabled }}

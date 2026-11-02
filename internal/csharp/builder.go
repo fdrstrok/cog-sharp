@@ -99,6 +99,9 @@ func (jenny Builder) genBuilder(context languages.Context, builder ir.Builder) (
 		"formatRefType":            jenny.typeFormatter.formatRefType,
 		"formatType":               jenny.typeFormatter.formatFieldType,
 		"formatPathIndex":          jenny.typeFormatter.formatPathIndex,
+		"newReference": func(ref *ir.RefType) string {
+			return "new " + jenny.typeFormatter.referenceName(*ref) + "()"
+		},
 	}).RenderAsBytes("builders/builder.tmpl", data)
 }
 
@@ -118,9 +121,6 @@ func (jenny Builder) builderName(builder ir.Builder) string {
 // variant interface (e.g. `Cog.Variants.Dataquery`); otherwise it is
 // the target object's name. Imports are added as a side effect.
 func (jenny Builder) builderSignature(pkg string, obj ir.Object) string {
-	if obj.Type.IsDataqueryVariant() {
-		return fmt.Sprintf("Cog.Variants.%s", formatObjectName(obj.Type.ImplementedVariant()))
-	}
 	if pkg != obj.SelfRef.ReferredPkg {
 		jenny.imports.addPackage(obj.SelfRef.ReferredPkg)
 	}

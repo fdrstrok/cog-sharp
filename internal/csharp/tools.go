@@ -41,7 +41,11 @@ func pascalCase(input string) string {
 
 // formatObjectName produces a PascalCased C# type name.
 func formatObjectName(name string) string {
-	return tools.UpperCamelCase(name)
+	formatted := tools.UpperCamelCase(name)
+	if formatted == "Kind" {
+		return "KindModel"
+	}
+	return formatted
 }
 
 // formatFieldName produces a PascalCased C# field/property name.

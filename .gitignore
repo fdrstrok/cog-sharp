@@ -1,5 +1,7 @@
 /bin/
 /examples/basic/generated/
+/.cache/
+/sdk/Grafana.Foundation/Generated/
 **/bin/
 **/obj/
 .DS_Store

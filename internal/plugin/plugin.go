@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"maps"
 
 	"github.com/fdrstrok/cog-sharp/internal/csharp"
 	"github.com/goccy/go-yaml"
@@ -83,6 +84,10 @@ func (l *Language) Generate(global languages.Config, input map[string]any, conte
 
 func readConfig(input map[string]any) (csharp.Config, error) {
 	config := csharp.Config{}
+	input = maps.Clone(input)
+	if path, ok := input["overrides_templates"].(string); ok {
+		input["overrides_templates"] = []string{path}
+	}
 	payload, err := yaml.Marshal(input)
 	if err != nil {
 		return config, err

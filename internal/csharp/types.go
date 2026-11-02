@@ -73,6 +73,9 @@ func (tf *typeFormatter) formatNonNullableFieldType(def ir.Type) string {
 // under `<NamespaceRoot>.Cog.Variants`. The fully-qualified form is
 // emitted so no extra `using` is required at the call site.
 func (tf *typeFormatter) formatComposable(def ir.ComposableSlotType) string {
+	if tf.config.SkipRuntime {
+		return "object"
+	}
 	return fmt.Sprintf("Cog.Variants.%s", formatObjectName(string(def.Variant)))
 }
 
@@ -294,7 +297,7 @@ func (tf *typeFormatter) formatAssignmentPath(resourceRoot string, fieldPath ir.
 			continue
 		}
 
-		path = fmt.Sprintf("((%s) %s.%s)", tf.formatReference(fieldPath[i].TypeHint.AsRef()), path, output)
+		path = fmt.Sprintf("((%s) %s.%s!)", tf.formatReference(fieldPath[i].TypeHint.AsRef()), path, output)
 	}
 
 	return path

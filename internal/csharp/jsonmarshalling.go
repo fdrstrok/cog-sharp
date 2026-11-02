@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/grafana/cog/pkg/ir"
+	"github.com/grafana/cog/pkg/languages"
 )
 
 // jsonMarshaller centralises System.Text.Json related code generation
@@ -41,21 +42,30 @@ func (j jsonMarshaller) fieldPropertyAttribute(field ir.StructField) string {
 // for disjunction-derived structs that need a custom converter, or the
 // empty string otherwise. The Phase 4 builder layer will emit the
 // matching JsonConverter<T> class via the Converters jenny.
-func (j jsonMarshaller) classConverterAttribute(object ir.Object) string {
-	if !j.enabled() || !needsCustomConverter(object) {
+func (j jsonMarshaller) classConverterAttribute(object ir.Object, context languages.Context) string {
+	if !j.enabled() || (!needsCustomConverter(object) && pluginRuntimeConfig(object, context) == nil) {
 		return ""
 	}
+
 	return fmt.Sprintf("[JsonConverter(typeof(%sJsonConverter))]", formatObjectName(object.Name))
 }
 
+func pluginRuntimeConfig(object ir.Object, context languages.Context) *languages.RuntimeConfig {
+	for _, config := range context.ConverterConfig.RuntimeConfig {
+		if config.Package == object.SelfRef.ReferredPkg && strings.EqualFold(config.Name, object.Name) {
+			return &config
+		}
+	}
+	return nil
+}
+
 // enumConverterAttribute returns the `[JsonConverter]` attribute for
-// string enums so that values are serialized as their original string
-// payload (declared via [JsonStringEnumMemberName("...")]).
+// string enums, including empty-string members rejected by the built-in converter.
 func (j jsonMarshaller) enumConverterAttribute(name string) string {
 	if !j.enabled() {
 		return ""
 	}
-	return fmt.Sprintf("[JsonConverter(typeof(JsonStringEnumConverter<%s>))]", name)
+	return fmt.Sprintf("[JsonConverter(typeof(%sJsonConverter))]", name)
 }
 
 // needsCustomConverter reports whether the type requires a generated

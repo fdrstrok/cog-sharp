@@ -67,6 +67,8 @@
         {{- with .Value.Envelope }}
         {{- .Type | formatType | lowerCamelCase }}
         {{- end }}
+    {{- else if .Value.ConstructorFor }}
+        {{- newReference .Value.ConstructorFor }}
     {{- else }}
         {{- formatRefType .IntoType .Value.Constant }}
     {{- end }}
@@ -104,7 +106,7 @@
     {{- if .InputType.IsArray }}
         foreach ({{ .InputType.AsArray.ValueType | formatBuilderFieldType }} r{{ .Depth }} in {{ .InputVar }})
         {
-            {{- if .InputType.Array.ValueType.IsArray }}
+            {{- if or .InputType.Array.ValueType.IsArray .InputType.Array.ValueType.IsMap }}
                 {{ .InputType.Array.ValueType | formatType }} {{ .OriginalInputVar }}Depth{{ .Depth }} = {{ .InputType.Array.ValueType | emptyValueForType }};
 
                 {{- template "unfold_builders" (dict "Depth" (add1 .Depth) "InputType" .InputType.Array.ValueType "OriginalInputVar" .OriginalInputVar "InputVar" (print "r" .Depth) "AssignmentPath" $.AssignmentPath "ResultVar" (print .OriginalInputVar "Depth" .Depth)) }}
@@ -118,9 +120,10 @@
     {{- else if .InputType.IsMap }}
         foreach (var entry{{ .Depth }} in {{ .InputVar }})
         {
-            {{- if .InputType.Map.ValueType.IsArray }}
-                {{- template "unfold_builders" (dict "Depth" (add1 .Depth) "InputType" .InputType.Map.ValueType "OriginalInputVar" .OriginalInputVar "InputVar" (print "entry" .Depth) "AssignmentPath" $.AssignmentPath "ResultVar" (print .OriginalInputVar "Depth" .Depth)) }}
-                {{ .ResultVar }}[entry{{ .Depth }}.Key] = entry{{ .Depth }}.Value;
+            {{- if or .InputType.Map.ValueType.IsArray .InputType.Map.ValueType.IsMap }}
+                {{ .InputType.Map.ValueType | formatType }} {{ .OriginalInputVar }}Depth{{ .Depth }} = {{ .InputType.Map.ValueType | emptyValueForType }};
+                {{- template "unfold_builders" (dict "Depth" (add1 .Depth) "InputType" .InputType.Map.ValueType "OriginalInputVar" .OriginalInputVar "InputVar" (print "entry" .Depth ".Value") "AssignmentPath" $.AssignmentPath "ResultVar" (print .OriginalInputVar "Depth" .Depth)) }}
+                {{ .ResultVar }}[entry{{ .Depth }}.Key] = {{ .OriginalInputVar }}Depth{{ .Depth }};
             {{- else }}
                 {{ .InputType.Map.ValueType | formatType }} {{ .OriginalInputVar }}Depth{{ .Depth }} = entry{{ .Depth }}.Value.Build();
                 {{ .ResultVar }}[entry{{ .Depth }}.Key] = {{ .OriginalInputVar }}Depth{{ .Depth }};

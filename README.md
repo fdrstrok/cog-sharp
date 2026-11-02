@@ -11,13 +11,16 @@ using the external language-plugin support introduced by
 [PR #1224](https://github.com/grafana/cog/pull/1224). It uses released Cog
 APIs rather than maintaining a Cog fork.
 
-**This is not an official Grafana Foundation SDK or a production-ready
-C# SDK.** The compiled example is tested; full Foundation SDK compilation,
-variant runtime support, and NuGet delivery remain work in progress.
+**This is an independent community project, not an official Grafana SDK.**
+The complete pinned Foundation SDK schema pipeline generates a .NET 10
+library that builds with warnings treated as errors. Real Dashboardv2 and
+legacy dashboard consumers, typed query/viz JSON, and local NuGet packaging
+are tested. Broader runtime coverage and package publication remain experimental.
 
 ## Quick start
 
 Requirements: Go 1.26 or newer and .NET 10 for the C# example.
+Git is also required for the pinned SDK inputs.
 Cog compatibility is currently tested with **v0.2.4**.
 
 ```sh
@@ -25,6 +28,7 @@ git clone https://github.com/fdrstrok/cog-sharp.git
 cd cog-sharp
 make check
 make smoke
+make sdk-test
 ```
 
 `make smoke` builds the plugin, invokes released Cog through its real RPC
@@ -76,6 +80,7 @@ The generated SDK consumer does not need Go or Cog at runtime.
 | `generate_json_converters` | `false` | JSON names, string enums, and union converters |
 | `skip_runtime` | `false` | Raw types only; incompatible with builders and JSON converters |
 | `generate_equality` | `false` | Not implemented; requesting it returns an error |
+| `overrides_templates` | unset | One directory containing template overrides; use a scalar path for Cog RPC |
 
 DTOs use public properties. With JSON generation enabled, properties use
 schema JSON names and optional null properties are omitted. Explicit false
@@ -86,30 +91,66 @@ absent/null/value model.
 different from JSON serialization and is not implemented. API reference
 generation and extra-file templates are also not implemented.
 
-## Foundation SDK work
+## Build the C# Foundation SDK
 
-The generator can consume an overlay of the upstream Foundation SDK
-pipeline. Preserve the **whole pipeline**, including global transforms,
-kind-registry inputs, and builder transformations, not just `units_from`.
-Pin Cog, this plugin, the SDK input commit, and kind-registry inputs.
+```sh
+make sdk-build  # fetch pinned inputs, generate all packages, build the library
+make sdk-test   # also run real consumers and validate dashboard JSON
+make sdk-pack   # also create a local prerelease .nupkg
+```
+
+The project is [`sdk/Grafana.Foundation/Grafana.Foundation.csproj`](sdk/Grafana.Foundation/Grafana.Foundation.csproj).
+Generated source is ignored by git. It must be generated before a direct
+`dotnet build`; the project rejects missing output rather than building an
+empty library.
+
+The DLL is written to `sdk/Grafana.Foundation/bin/Release/net10.0/`.
+Local packages are written to `.cache/packages/` with the community package
+ID `CogSharp.Grafana.Foundation`. No package is published by these commands.
+Only regeneration needs Go/Cog and network access; C# consumers use normal
+project or package references.
+
+Generation copies the **whole upstream pipeline**, including global
+transforms, kind-registry inputs, and builder transformations, into an
+ignored overlay. Java-compatible no-union conveniences are enabled for C#;
+SDK-specific layout and query-refId hooks live in `sdk/templates/overrides`.
+Original upstream checkouts are not modified.
+
+| Input | Pin |
+|---|---|
+| Cog | `v0.2.4` |
+| Foundation SDK | `72b873117be02d3cd352c4ac8590b6555b0d1ce2` |
+| Kind registry | `f5c7186c5a8c568155e156a3d41c8bdb80bc53ae` |
+
+These pins live in `internal/sdkgen/generate.go`. Referenced Grafana schema
+versions come from the pinned SDK configuration. Input provenance is written
+beside the generated sources.
+
+[`examples/foundation`](examples/foundation) builds Dashboardv2 with
+Timeseries and Prometheus builders. Its executable regression checks cover:
+
+- Typed query, visualization-options, and field-config deserialization.
+- Unknown plugin JSON preservation and known-plugin wire round trips.
+- Automatic query refIds and legacy dashboard panel/row positioning.
+- Numeric and empty-string enums, schema defaults, and nested collections of builders.
+
+The example's JSON is then validated against the pinned upstream
+Dashboardv2 JSON Schema. This validates the dashboard specification, not a
+Grafana HTTP resource envelope or a live server deployment.
+
+For existing input checkouts, pass
+`SDK_GENERATE_ARGS="--foundation-sdk-dir /path/to/sdk --kind-registry-dir /path/to/registry"`.
+The revisions and relevant input worktrees must match the pins.
 
 Current limitations:
 
-- The full Foundation SDK is not yet a compiling, supported C# package.
-- Composable variant interfaces and query/viz polymorphic runtime support
-  are incomplete.
-- Convenience transformations scoped to `[go, java]` do not automatically
-  apply to `csharp`; C# needs a selective overlay.
-- Full fixture parity through RPC, SDK examples, and NuGet packaging are
-  still needed.
-- JSON support outside the tested shapes is experimental.
+- Compiling every generated package does not prove every builder or plugin's runtime behavior.
+- Full upstream fixture parity through RPC and wider plugin-specific JSON tests are still needed.
+- The default variant registry is generated from the pinned schemas; unknown plugin specs remain raw JSON.
+- Equality, object-to-builder-source converters, API reference generation, and extra-file templates remain unsupported.
+- NuGet publication, official Grafana maintenance, live Grafana deployment, and Native AOT are not claimed.
 - Cog v0.2.4's discriminator inference does not handle unions containing
   only foreign-package references; those require explicit schema mapping.
-
-The first SDK milestone is a dependency-complete Dashboardv2/Common/
-Timeseries/Prometheus slice that compiles and passes actual JSON and
-consumer tests. Broader SDK coverage and official upstream integration
-are separate milestones.
 
 ## License
 
